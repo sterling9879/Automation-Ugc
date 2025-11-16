@@ -22,10 +22,17 @@ def get_voice_choices() -> List[str]:
     """Obtém lista de vozes disponíveis do ElevenLabs"""
     try:
         voices = audio_generator.get_available_voices()
-        return [voice['name'] for voice in voices]
+        if voices and len(voices) > 0:
+            return [voice['name'] for voice in voices]
+        else:
+            logger.warning("Nenhuma voz disponível do ElevenLabs")
+            return ["⚠️ Configure a API Key do ElevenLabs no arquivo .env"]
     except Exception as e:
-        logger.error(f"Erro ao obter vozes: {e}")
-        return ["Default Voice"]
+        logger.error(f"Erro ao obter vozes do ElevenLabs: {e}")
+        print(f"\n⚠️  AVISO: Não foi possível conectar ao ElevenLabs")
+        print(f"   Verifique se a ELEVENLABS_API_KEY no arquivo .env está correta")
+        print(f"   Erro: {e}\n")
+        return ["⚠️ Erro ao conectar - Verifique a API Key do ElevenLabs"]
 
 def estimate_job(text: str) -> str:
     """
@@ -188,18 +195,16 @@ def create_interface():
 
                 # INPUT: Voz
                 voice_dropdown = gr.Dropdown(
-                    label="🎤 Selecione a Voz",
+                    label="🎤 Selecione a Voz (ElevenLabs)",
                     choices=get_voice_choices(),
-                    value=get_voice_choices()[0] if get_voice_choices() else None,
-                    info="Voz usada para narração (ElevenLabs)"
+                    value=get_voice_choices()[0] if get_voice_choices() else None
                 )
 
                 # INPUT: Imagens
                 images_input = gr.File(
-                    label="🖼️ Imagens do Apresentador",
+                    label="🖼️ Imagens do Apresentador (1-20 imagens PNG/JPG)",
                     file_count="multiple",
-                    file_types=["image"],
-                    info="Faça upload de 1-20 imagens (PNG, JPG). O sistema irá variar entre elas."
+                    file_types=["image"]
                 )
 
                 # Botão de estimativa
@@ -302,17 +307,27 @@ def main():
     """Função principal"""
     logger.info("Iniciando aplicação Gradio...")
 
-    # Cria interface
-    app = create_interface()
+    try:
+        # Cria interface
+        app = create_interface()
 
-    # Lança aplicação
-    app.launch(
-        server_name="0.0.0.0",
-        server_port=7860,
-        share=False,
-        show_error=True,
-        inbrowser=False
-    )
+        # Lança aplicação
+        logger.info("Abrindo navegador...")
+        app.launch(
+            server_name="0.0.0.0",
+            server_port=7860,
+            share=False,
+            show_error=True,
+            inbrowser=True  # Abre automaticamente no navegador padrão
+        )
+    except Exception as e:
+        logger.error(f"Erro ao iniciar aplicação: {e}")
+        print(f"\n❌ Erro ao iniciar aplicação: {e}")
+        print("\nVerifique:")
+        print("1. Se todas as API keys estão configuradas corretamente no .env")
+        print("2. Se as dependências estão instaladas: pip install -r requirements.txt")
+        print("3. Se o FFmpeg está instalado e no PATH")
+        raise
 
 if __name__ == "__main__":
     main()
