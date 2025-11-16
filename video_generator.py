@@ -194,10 +194,9 @@ class FileUploader:
     """Classe para upload de arquivos para serviços temporários"""
 
     @staticmethod
-    @retry_with_backoff(max_retries=3, base_delay=1.0)
-    def upload_to_0x0(file_path: Path) -> str:
+    def upload_to_fileio(file_path: Path) -> str:
         """
-        Faz upload de arquivo para 0x0.st
+        Faz upload de arquivo para file.io (14 dias de retenção)
 
         Args:
             file_path: Caminho do arquivo
@@ -209,26 +208,195 @@ class FileUploader:
             Exception: Se o upload falhar
         """
         try:
-            logger.info(f"Fazendo upload de {file_path.name} para 0x0.st...")
+            logger.info(f"Tentando upload para file.io...")
+
+            with open(file_path, 'rb') as f:
+                response = requests.post(
+                    'https://file.io',
+                    files={'file': f},
+                    timeout=120
+                )
+
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get('success'):
+                url = data['link']
+                logger.info(f"✅ Upload file.io concluído: {url}")
+                return url
+            else:
+                raise Exception(f"file.io retornou erro: {data}")
+
+        except Exception as e:
+            logger.error(f"❌ file.io falhou: {e}")
+            raise
+
+    @staticmethod
+    def upload_to_tmpfiles(file_path: Path) -> str:
+        """
+        Faz upload de arquivo para tmpfiles.org (1 hora de retenção)
+
+        Args:
+            file_path: Caminho do arquivo
+
+        Returns:
+            URL pública do arquivo
+
+        Raises:
+            Exception: Se o upload falhar
+        """
+        try:
+            logger.info(f"Tentando upload para tmpfiles.org...")
+
+            with open(file_path, 'rb') as f:
+                response = requests.post(
+                    'https://tmpfiles.org/api/v1/upload',
+                    files={'file': f},
+                    timeout=120
+                )
+
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get('status') == 'success':
+                # tmpfiles retorna URL no formato tmpfiles.org/xxx
+                # Precisa converter para tmpfiles.org/dl/xxx para download direto
+                url = data['data']['url']
+                url = url.replace('tmpfiles.org/', 'tmpfiles.org/dl/')
+                logger.info(f"✅ Upload tmpfiles.org concluído: {url}")
+                return url
+            else:
+                raise Exception(f"tmpfiles.org retornou erro: {data}")
+
+        except Exception as e:
+            logger.error(f"❌ tmpfiles.org falhou: {e}")
+            raise
+
+    @staticmethod
+    def upload_to_catbox(file_path: Path) -> str:
+        """
+        Faz upload de arquivo para catbox.moe (permanente, até 200MB)
+
+        Args:
+            file_path: Caminho do arquivo
+
+        Returns:
+            URL pública do arquivo
+
+        Raises:
+            Exception: Se o upload falhar
+        """
+        try:
+            logger.info(f"Tentando upload para catbox.moe...")
+
+            with open(file_path, 'rb') as f:
+                response = requests.post(
+                    'https://catbox.moe/user/api.php',
+                    data={'reqtype': 'fileupload'},
+                    files={'fileToUpload': f},
+                    timeout=120
+                )
+
+            response.raise_for_status()
+
+            # Catbox retorna diretamente a URL
+            url = response.text.strip()
+
+            if url.startswith('http'):
+                logger.info(f"✅ Upload catbox.moe concluído: {url}")
+                return url
+            else:
+                raise Exception(f"catbox.moe retornou resposta inválida: {url}")
+
+        except Exception as e:
+            logger.error(f"❌ catbox.moe falhou: {e}")
+            raise
+
+    @staticmethod
+    def upload_to_0x0(file_path: Path) -> str:
+        """
+        Faz upload de arquivo para 0x0.st (365 dias, até 512MB)
+
+        Args:
+            file_path: Caminho do arquivo
+
+        Returns:
+            URL pública do arquivo
+
+        Raises:
+            Exception: Se o upload falhar
+        """
+        try:
+            logger.info(f"Tentando upload para 0x0.st...")
 
             with open(file_path, 'rb') as f:
                 response = requests.post(
                     'https://0x0.st',
                     files={'file': f},
-                    timeout=60
+                    timeout=120
                 )
 
             response.raise_for_status()
 
             url = response.text.strip()
-
-            logger.info(f"Upload concluído: {url}")
-
+            logger.info(f"✅ Upload 0x0.st concluído: {url}")
             return url
 
         except Exception as e:
-            logger.error(f"Erro ao fazer upload de {file_path.name}: {e}")
+            logger.error(f"❌ 0x0.st falhou: {e}")
             raise
+
+    @staticmethod
+    def upload_file(file_path: Path) -> str:
+        """
+        Faz upload de arquivo tentando múltiplos serviços com fallback automático
+
+        Ordem de tentativa:
+        1. catbox.moe (permanente, mais confiável)
+        2. file.io (14 dias)
+        3. tmpfiles.org (1 hora)
+        4. 0x0.st (365 dias)
+
+        Args:
+            file_path: Caminho do arquivo
+
+        Returns:
+            URL pública do arquivo
+
+        Raises:
+            Exception: Se todos os serviços falharem
+        """
+        logger.info(f"📤 Iniciando upload de {file_path.name}...")
+
+        # Lista de serviços para tentar (em ordem de preferência)
+        upload_services = [
+            ('catbox.moe', FileUploader.upload_to_catbox),
+            ('file.io', FileUploader.upload_to_fileio),
+            ('tmpfiles.org', FileUploader.upload_to_tmpfiles),
+            ('0x0.st', FileUploader.upload_to_0x0),
+        ]
+
+        errors = []
+
+        for service_name, upload_func in upload_services:
+            try:
+                logger.info(f"🔄 Tentando {service_name}...")
+                url = upload_func(file_path)
+                logger.info(f"✅ Upload bem-sucedido via {service_name}")
+                return url
+
+            except Exception as e:
+                error_msg = f"{service_name}: {str(e)}"
+                errors.append(error_msg)
+                logger.warning(f"⚠️  {service_name} falhou, tentando próximo serviço...")
+                continue
+
+        # Se chegou aqui, todos falharam
+        error_details = "\n".join(f"  - {err}" for err in errors)
+        raise Exception(
+            f"Falha ao fazer upload de {file_path.name}. "
+            f"Todos os serviços falharam:\n{error_details}"
+        )
 
 class VideoGenerator:
     """Gera vídeos com lip-sync usando WaveSpeed"""
@@ -308,9 +476,9 @@ class VideoGenerator:
 
             logger.info(f"Gerando vídeo {video_number}: áudio={audio_path.name}, imagem={image_path.name}")
 
-            # Upload de arquivos
-            audio_url = self.uploader.upload_to_0x0(audio_path)
-            image_url = self.uploader.upload_to_0x0(image_path)
+            # Upload de arquivos (com fallback automático)
+            audio_url = self.uploader.upload_file(audio_path)
+            image_url = self.uploader.upload_file(image_path)
 
             # Gera vídeo
             video_url = self.client.process_video(
