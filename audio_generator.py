@@ -105,19 +105,20 @@ class AudioGenerator:
         try:
             logger.info(f"Gerando áudio para: {output_path.name}")
 
-            # Gera áudio
-            audio_generator = self.client.generate(
+            # Gera áudio usando a API text_to_speech
+            audio_data = self.client.text_to_speech.convert(
+                voice_id=voice_id,
                 text=text,
-                voice=voice_id,
-                model=model_id,
-                output_format="mp3_44100_128"  # MP3 de alta qualidade
+                model_id=model_id,
+                output_format="mp3_44100_128"
             )
 
             # Salva arquivo
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
             with open(output_path, 'wb') as f:
-                for chunk in audio_generator:
+                # audio_data é um iterador de bytes
+                for chunk in audio_data:
                     f.write(chunk)
 
             logger.info(f"Áudio gerado com sucesso: {output_path}")
