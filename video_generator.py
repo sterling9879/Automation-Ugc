@@ -510,9 +510,11 @@ class VideoGenerator:
 
             logger.info(f"Gerando vídeo {video_number}: áudio={audio_path.name}, imagem={image_path.name}")
 
-            # Upload de arquivos (com fallback automático)
-            audio_url = self.uploader.upload_file(audio_path)
-            image_url = self.uploader.upload_file(image_path)
+            # Upload de arquivos (usando serviços compatíveis com WaveSpeed)
+            from wavespeed_uploader import WaveSpeedCompatibleUploader
+
+            audio_url = WaveSpeedCompatibleUploader.upload_file_wavespeed_compatible(audio_path)
+            image_url = WaveSpeedCompatibleUploader.upload_file_wavespeed_compatible(image_path)
 
             # Gera vídeo
             video_url = self.client.process_video(
