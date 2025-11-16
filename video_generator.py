@@ -96,7 +96,6 @@ class WaveSpeedClient:
             logger.error(f"Erro ao submeter tarefa: {e}")
             raise
 
-    @retry_with_backoff(max_retries=5, base_delay=5.0)
     def poll_result(self, request_id: str, poll_interval: float = None, poll_timeout: float = None) -> dict:
         """
         Faz polling até obter resultado da tarefa
@@ -123,8 +122,19 @@ class WaveSpeedClient:
 
         logger.info(f"Iniciando polling para tarefa {request_id}")
 
+        # Aguarda 15 segundos antes do primeiro poll (API precisa de tempo para processar)
+        logger.info("Aguardando 15s antes do primeiro poll (API processando)...")
+        time.sleep(15)
+
+        poll_count = 0
+        max_connection_errors = 5
+
         while True:
+            poll_count += 1
+
             try:
+                logger.info(f"Poll #{poll_count} para tarefa {request_id}...")
+
                 response = self.session.get(
                     endpoint,
                     headers=self._headers(),
@@ -136,15 +146,15 @@ class WaveSpeedClient:
                 data = response.json()
                 status = data.get("data", {}).get("status")
 
-                logger.debug(f"Status da tarefa {request_id}: {status}")
+                logger.info(f"Status da tarefa {request_id}: {status}")
 
                 if status == "completed":
-                    logger.info(f"Tarefa {request_id} concluída com sucesso")
+                    logger.info(f"✅ Tarefa {request_id} concluída com sucesso")
                     return data["data"]
 
                 elif status == "failed":
                     error_msg = data.get("data", {}).get("error", "Erro desconhecido")
-                    raise Exception(f"Processamento falhou: {error_msg}")
+                    raise Exception(f"Processamento falhou na API: {error_msg}")
 
                 # Verifica timeout
                 elapsed = time.time() - start_time
@@ -152,13 +162,37 @@ class WaveSpeedClient:
                     raise Exception(f"Timeout após {poll_timeout}s aguardando resultado")
 
                 # Aguarda antes do próximo poll
+                logger.info(f"Aguardando {poll_interval}s antes do próximo poll...")
                 time.sleep(poll_interval)
+
+            except requests.exceptions.ConnectionError as e:
+                logger.warning(f"⚠️  Erro de conexão no poll #{poll_count}: {e}")
+
+                if poll_count >= max_connection_errors:
+                    raise Exception(
+                        f"Muitos erros de conexão ({max_connection_errors}). "
+                        "A API WaveSpeed pode estar sobrecarregada ou instável."
+                    )
+
+                # Aguarda mais tempo antes de tentar novamente
+                logger.info("Aguardando 10s devido a erro de conexão...")
+                time.sleep(10)
+                continue
 
             except requests.HTTPError as e:
                 if e.response.status_code == 429:
-                    logger.warning("Rate limit no polling, aguardando...")
-                    time.sleep(10)
+                    logger.warning("Rate limit no polling, aguardando 30s...")
+                    time.sleep(30)
                     continue
+                elif e.response.status_code >= 500:
+                    logger.warning(f"Erro do servidor ({e.response.status_code}), aguardando 15s...")
+                    time.sleep(15)
+                    continue
+                else:
+                    raise
+
+            except Exception as e:
+                logger.error(f"Erro inesperado no polling: {type(e).__name__}: {e}")
                 raise
 
     def process_video(

@@ -22,8 +22,8 @@ class Config:
 
     # Configurações de Processamento
     BATCH_SIZE = int(os.getenv('BATCH_SIZE', 3))
-    POLL_INTERVAL = float(os.getenv('POLL_INTERVAL', 5.0))
-    POLL_TIMEOUT = float(os.getenv('POLL_TIMEOUT', 600.0))
+    POLL_INTERVAL = float(os.getenv('POLL_INTERVAL', 10.0))  # 10 segundos entre polls
+    POLL_TIMEOUT = float(os.getenv('POLL_TIMEOUT', 900.0))   # 15 minutos timeout total
 
     # Configurações de Vídeo
     DEFAULT_RESOLUTION = os.getenv('DEFAULT_RESOLUTION', '480p')
