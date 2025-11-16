@@ -1,10 +1,10 @@
 """
-Uploader alternativo usando serviços compatíveis com WaveSpeed
+Uploader usando serviços compatíveis com WaveSpeed
+Usa 0x0.st como primário e tmpfiles.org como fallback
 """
 import requests
 from pathlib import Path
 from utils import get_logger
-import base64
 
 logger = get_logger(__name__)
 
@@ -12,167 +12,101 @@ class WaveSpeedCompatibleUploader:
     """Upload de arquivos para serviços compatíveis com WaveSpeed"""
 
     @staticmethod
-    def upload_to_fileio(file_path: Path) -> str:
+    def upload_to_0x0st(file_path: Path) -> str:
         """
-        Faz upload para file.io (compatível com WaveSpeed)
-        Retenção: 14 dias
+        Faz upload para 0x0.st (compatível com WaveSpeed)
+        Retorna URL como texto puro
         """
         try:
-            logger.info(f"Tentando upload para file.io (compatível WaveSpeed)...")
+            logger.info(f"Tentando upload para 0x0.st...")
 
             with open(file_path, 'rb') as f:
-                # file.io com configurações específicas
                 response = requests.post(
-                    'https://file.io',
+                    'https://0x0.st',
                     files={'file': f},
-                    data={'expires': '14d'},  # 14 dias
+                    timeout=120
+                )
+
+            response.raise_for_status()
+
+            # 0x0.st retorna a URL como texto puro
+            url = response.text.strip()
+
+            if url.startswith('http'):
+                logger.info(f"✅ Upload 0x0.st concluído: {url}")
+                return url
+            else:
+                raise Exception(f"0x0.st retornou resposta inválida: {url}")
+
+        except Exception as e:
+            logger.error(f"❌ 0x0.st falhou: {e}")
+            raise
+
+    @staticmethod
+    def upload_to_tmpfiles(file_path: Path) -> str:
+        """
+        Faz upload para tmpfiles.org (fallback compatível com WaveSpeed)
+        Retorna JSON e requer conversão de URL
+        """
+        try:
+            logger.info(f"Tentando upload para tmpfiles.org...")
+
+            with open(file_path, 'rb') as f:
+                response = requests.post(
+                    'https://tmpfiles.org/api/v1/upload',
+                    files={'file': f},
                     timeout=120
                 )
 
             response.raise_for_status()
             data = response.json()
 
-            if data.get('success'):
-                url = data['link']
-                logger.info(f"✅ Upload file.io concluído: {url}")
+            # Extrai URL do JSON (formato: data.url)
+            if data.get('status') == 'success' and 'data' in data and 'url' in data['data']:
+                url = data['data']['url']
+
+                # Converte URL de tmpfiles.org/123 para tmpfiles.org/dl/123
+                if 'tmpfiles.org/' in url:
+                    url = url.replace('tmpfiles.org/', 'tmpfiles.org/dl/')
+
+                logger.info(f"✅ Upload tmpfiles.org concluído: {url}")
                 return url
             else:
-                raise Exception(f"file.io retornou erro: {data}")
+                raise Exception(f"tmpfiles.org retornou formato inválido: {data}")
 
         except Exception as e:
-            logger.error(f"❌ file.io falhou: {e}")
-            raise
-
-    @staticmethod
-    def upload_to_pixeldrain(file_path: Path) -> str:
-        """
-        Faz upload para pixeldrain.com (CDN profissional, aceito por WaveSpeed)
-        Permanente, sem limites razoáveis
-        """
-        try:
-            logger.info(f"Tentando upload para pixeldrain.com...")
-
-            with open(file_path, 'rb') as f:
-                response = requests.post(
-                    'https://pixeldrain.com/api/file',
-                    files={'file': f},
-                    timeout=120
-                )
-
-            response.raise_for_status()
-            data = response.json()
-
-            if data.get('success'):
-                file_id = data['id']
-                # URL direta para download
-                url = f"https://pixeldrain.com/api/file/{file_id}?download"
-                logger.info(f"✅ Upload pixeldrain concluído: {url}")
-                return url
-            else:
-                raise Exception(f"pixeldrain retornou erro: {data}")
-
-        except Exception as e:
-            logger.error(f"❌ pixeldrain falhou: {e}")
-            raise
-
-    @staticmethod
-    def upload_to_gofile(file_path: Path) -> str:
-        """
-        Faz upload para gofile.io (CDN rápido e confiável)
-        """
-        try:
-            logger.info(f"Tentando upload para gofile.io...")
-
-            # Primeiro, pega o melhor servidor
-            server_response = requests.get('https://api.gofile.io/getServer', timeout=30)
-            server_response.raise_for_status()
-            server_data = server_response.json()
-
-            if server_data.get('status') != 'ok':
-                raise Exception("Não foi possível obter servidor do gofile")
-
-            server = server_data['data']['server']
-
-            # Upload do arquivo
-            with open(file_path, 'rb') as f:
-                upload_response = requests.post(
-                    f'https://{server}.gofile.io/uploadFile',
-                    files={'file': f},
-                    timeout=120
-                )
-
-            upload_response.raise_for_status()
-            upload_data = upload_response.json()
-
-            if upload_data.get('status') != 'ok':
-                raise Exception(f"gofile upload falhou: {upload_data}")
-
-            # URL direta do arquivo
-            download_page = upload_data['data']['downloadPage']
-            # Extrair ID do arquivo da página
-            file_id = download_page.split('/')[-1]
-
-            # Gofile tem URLs diretas no formato:
-            # Vamos usar a URL de download direta
-            url = upload_data['data'].get('downloadPage')
-
-            logger.info(f"✅ Upload gofile concluído: {url}")
-            return url
-
-        except Exception as e:
-            logger.error(f"❌ gofile falhou: {e}")
-            raise
-
-    @staticmethod
-    def upload_to_uguu(file_path: Path) -> str:
-        """
-        Faz upload para uguu.se (serviço estável, 3 dias de retenção)
-        """
-        try:
-            logger.info(f"Tentando upload para uguu.se...")
-
-            with open(file_path, 'rb') as f:
-                response = requests.post(
-                    'https://uguu.se/upload',
-                    files={'files[]': f},
-                    timeout=120
-                )
-
-            response.raise_for_status()
-            data = response.json()
-
-            if data.get('success'):
-                url = data['files'][0]['url']
-                logger.info(f"✅ Upload uguu.se concluído: {url}")
-                return url
-            else:
-                raise Exception(f"uguu.se retornou erro: {data}")
-
-        except Exception as e:
-            logger.error(f"❌ uguu.se falhou: {e}")
+            logger.error(f"❌ tmpfiles.org falhou: {e}")
             raise
 
     @staticmethod
     def upload_file_wavespeed_compatible(file_path: Path) -> str:
         """
         Faz upload para serviços compatíveis com WaveSpeed
-        Tenta múltiplos serviços em ordem de confiabilidade
+        Usa 0x0.st como primário e tmpfiles.org como fallback
 
         Returns:
             URL pública acessível pela WaveSpeed
         """
         logger.info(f"📤 Upload compatível WaveSpeed: {file_path.name}...")
 
-        # Ordem de preferência (serviços que WaveSpeed provavelmente aceita)
-        services = [
-            ('pixeldrain.com', WaveSpeedCompatibleUploader.upload_to_pixeldrain),
-            ('file.io', WaveSpeedCompatibleUploader.upload_to_fileio),
-            ('uguu.se', WaveSpeedCompatibleUploader.upload_to_uguu),
+        # Serviços compatíveis testados com WaveSpeed
+        upload_services = [
+            {
+                "name": "0x0.st",
+                "upload_func": WaveSpeedCompatibleUploader.upload_to_0x0st,
+            },
+            {
+                "name": "tmpfiles.org",
+                "upload_func": WaveSpeedCompatibleUploader.upload_to_tmpfiles,
+            },
         ]
 
         errors = []
 
-        for service_name, upload_func in services:
+        for service in upload_services:
+            service_name = service["name"]
+            upload_func = service["upload_func"]
+
             try:
                 logger.info(f"🔄 Tentando {service_name}...")
                 url = upload_func(file_path)
