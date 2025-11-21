@@ -544,21 +544,52 @@ class VideoGenerator:
                 'video_path': video_path
             }
 
-        # Processa sequencialmente para respeitar rate limits
-        # (WaveSpeed Wan 2.2 pode ter limites baixos)
-        for audio_data in audios:
-            try:
-                result = generate_single_video(audio_data)
-                results.append(result)
-            except Exception as e:
-                logger.error(f"Erro ao gerar vídeo {audio_data['audio_number']}: {e}")
-                results.append({
-                    'video_number': audio_data['audio_number'],
-                    'audio_path': audio_data['audio_path'],
-                    'image_path': None,
-                    'video_path': None,
-                    'error': str(e)
-                })
+        # Processa em paralelo (WaveSpeed suporta múltiplas requisições simultâneas)
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        logger.info(f"🚀 Enviando {len(audios)} vídeos para a fila do WaveSpeed em paralelo...")
+
+        # Notifica que todos os vídeos foram enviados para a fila
+        if progress_callback:
+            progress_callback(f"🎬 {len(audios)} vídeos na fila do WaveSpeed (processando em paralelo)...")
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submete todos os vídeos para processamento paralelo
+            futures = {
+                executor.submit(generate_single_video, audio_data): audio_data
+                for audio_data in audios
+            }
+
+            # Aguarda conclusão de cada vídeo
+            for future in as_completed(futures):
+                audio_data = futures[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+
+                    # Atualiza progresso com contador
+                    completed = len(results)
+                    remaining = len(audios) - completed
+                    logger.info(f"✅ Vídeo {result['video_number']} concluído ({completed}/{len(audios)})")
+
+                    if progress_callback:
+                        progress_callback(f"✅ Vídeo {completed}/{len(audios)} concluído | {remaining} em processamento...")
+
+                except Exception as e:
+                    logger.error(f"❌ Erro ao gerar vídeo {audio_data['audio_number']}: {e}")
+                    results.append({
+                        'video_number': audio_data['audio_number'],
+                        'audio_path': audio_data['audio_path'],
+                        'image_path': None,
+                        'video_path': None,
+                        'error': str(e)
+                    })
+
+                    # Atualiza progresso mesmo com erro
+                    completed = len(results)
+                    remaining = len(audios) - completed
+                    if progress_callback:
+                        progress_callback(f"⚠️ Vídeo {completed}/{len(audios)} processado (com erro) | {remaining} em processamento...")
 
         # Ordena resultados por número
         results.sort(key=lambda x: x['video_number'])

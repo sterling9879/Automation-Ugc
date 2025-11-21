@@ -30,7 +30,7 @@ class JobStatus(Enum):
 class Job:
     """Representa um job de geração de vídeo"""
 
-    def __init__(self, job_id: str, input_text: str, voice_name: str, image_paths: List[str]):
+    def __init__(self, job_id: str, input_text: str, voice_name: str, image_paths: List[str], model_id: str = "eleven_multilingual_v2"):
         """
         Inicializa um novo job
 
@@ -39,10 +39,12 @@ class Job:
             input_text: Texto completo de entrada
             voice_name: Nome da voz ElevenLabs
             image_paths: Lista de caminhos das imagens
+            model_id: Modelo ElevenLabs a usar
         """
         self.job_id = job_id
         self.input_text = input_text
         self.voice_name = voice_name
+        self.model_id = model_id
         self.image_paths = [Path(p) for p in image_paths]
 
         self.status = JobStatus.CREATED
@@ -142,7 +144,8 @@ class JobManager:
         self,
         input_text: str,
         voice_name: str,
-        image_paths: List[str]
+        image_paths: List[str],
+        model_id: str = "eleven_multilingual_v2"
     ) -> tuple[Optional[Job], Optional[str]]:
         """
         Cria um novo job após validações
@@ -151,6 +154,7 @@ class JobManager:
             input_text: Texto completo de entrada
             voice_name: Nome da voz ElevenLabs
             image_paths: Lista de caminhos das imagens
+            model_id: Modelo ElevenLabs a usar
 
         Returns:
             (Job, erro) - Job criado ou None com mensagem de erro
@@ -167,7 +171,7 @@ class JobManager:
 
         # Cria job
         job_id = str(uuid.uuid4())
-        job = Job(job_id, input_text, voice_name, image_paths)
+        job = Job(job_id, input_text, voice_name, image_paths, model_id)
 
         logger.info(f"Job criado: {job_id}")
 
@@ -224,6 +228,7 @@ class JobManager:
                 texts=job.formatted_texts,
                 voice_id=voice_id,
                 output_dir=job.job_dir,
+                model_id=job.model_id,
                 progress_callback=lambda msg: update_progress(msg, 30)
             )
 
@@ -235,7 +240,7 @@ class JobManager:
             update_progress(f"{len(job.audios)} áudios gerados com sucesso", 50)
 
             # ETAPA 3: Gerar vídeos com lip-sync (WaveSpeed)
-            update_progress("Gerando vídeos com lip-sync...", 55)
+            update_progress(f"Gerando {len(job.audios)} vídeos com lip-sync em paralelo...", 55)
             job.status = JobStatus.GENERATING_VIDEO
             job.save_state()
 

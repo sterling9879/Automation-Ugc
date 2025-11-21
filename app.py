@@ -34,6 +34,16 @@ def get_voice_choices() -> List[str]:
         print(f"   Erro: {e}\n")
         return ["⚠️ Erro ao conectar - Verifique a API Key do ElevenLabs"]
 
+def get_model_choices() -> List[tuple]:
+    """Obtém lista de modelos ElevenLabs disponíveis"""
+    return [
+        ("Multilingual v2 (Melhor qualidade, mais idiomas)", "eleven_multilingual_v2"),
+        ("Turbo v2.5 (Mais rápido e eficiente)", "eleven_turbo_v2_5"),
+        ("Turbo v2 (Rápido)", "eleven_turbo_v2"),
+        ("Multilingual v1 (Legado)", "eleven_multilingual_v1"),
+        ("Monolingual v1 (Inglês apenas)", "eleven_monolingual_v1"),
+    ]
+
 def estimate_job(text: str) -> str:
     """
     Estima custo e tempo do processamento
@@ -77,6 +87,7 @@ def estimate_job(text: str) -> str:
 def process_video_generation(
     text: str,
     voice_name: str,
+    model_id: str,
     images: List[gr.File],
     progress=gr.Progress()
 ) -> Tuple[Optional[str], str, str]:
@@ -86,6 +97,7 @@ def process_video_generation(
     Args:
         text: Texto de entrada
         voice_name: Nome da voz selecionada
+        model_id: Modelo ElevenLabs a usar
         images: Lista de imagens enviadas
         progress: Objeto de progresso do Gradio
 
@@ -121,7 +133,8 @@ def process_video_generation(
         job, error = job_manager.create_job(
             input_text=text,
             voice_name=voice_name,
-            image_paths=image_paths
+            image_paths=image_paths,
+            model_id=model_id
         )
 
         if error:
@@ -198,6 +211,13 @@ def create_interface():
                     label="🎤 Selecione a Voz (ElevenLabs)",
                     choices=get_voice_choices(),
                     value=get_voice_choices()[0] if get_voice_choices() else None
+                )
+
+                # INPUT: Modelo
+                model_dropdown = gr.Dropdown(
+                    label="🤖 Selecione o Modelo de Voz (ElevenLabs)",
+                    choices=get_model_choices(),
+                    value="eleven_multilingual_v2"
                 )
 
                 # INPUT: Imagens
@@ -289,7 +309,7 @@ Vamos começar!"""
 
         process_btn.click(
             fn=process_video_generation,
-            inputs=[text_input, voice_dropdown, images_input],
+            inputs=[text_input, voice_dropdown, model_dropdown, images_input],
             outputs=[video_output, status_output, error_output]
         )
 
