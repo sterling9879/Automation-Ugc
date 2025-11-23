@@ -1,0 +1,16 @@
+# Requirements para Aplicação GUI Nativa (PyQt5)
+# Use este arquivo para a versão desktop do Windows
+
+# Interface gráfica nativa
+PyQt5>=5.15.0
+
+# Dependências base do projeto
+python-dotenv>=1.0.0
+requests>=2.31.0
+ffmpeg-python>=0.2.0
+google-generativeai>=0.3.0
+elevenlabs>=1.0.0
+Pillow>=10.0.0
+
+# Build (opcional - apenas para criar executável)
+pyinstaller>=6.0.0
