@@ -1,0 +1,13 @@
+# Requirements específicos para build do executável
+# Instale antes de rodar build_exe.bat
+
+# PyInstaller para criar executável
+pyinstaller>=6.0.0
+
+# Todas as dependências do projeto
+-r requirements.txt
+
+# Dependências adicionais para o executável
+# (podem ser necessárias para imports ocultos)
+typing-extensions>=4.0.0
+importlib-metadata>=6.0.0
