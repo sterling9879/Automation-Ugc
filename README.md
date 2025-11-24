@@ -1,6 +1,10 @@
 # 🎬 SaaS de Geração de Vídeos com Lip-Sync
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sterling9879/Automation-Ugc/blob/main/LipSync_Video_Generator.ipynb)
+
 Sistema completo para geração automatizada de vídeos profissionais com sincronização labial (lip-sync) usando inteligência artificial.
+
+**🚀 Experimente agora no Google Colab** - Sem instalação, roda no navegador! [Clique aqui →](https://colab.research.google.com/github/sterling9879/Automation-Ugc/blob/main/LipSync_Video_Generator.ipynb)
 
 ## 🌟 Visão Geral
 
@@ -40,6 +44,38 @@ Este sistema transforma roteiros de texto em vídeos completos com apresentadore
 - Preview em tempo real
 - Estimativa de custo e tempo
 - Download fácil do vídeo final
+
+## 🚀 Formas de Uso
+
+Escolha a opção que melhor se adapta às suas necessidades:
+
+### 1️⃣ **Google Colab** ⭐ Recomendado para Testes
+- ✅ **Zero instalação** - Roda no navegador
+- ✅ **Pronto em 2-3 minutos**
+- ✅ **Gratuito** - Usa tier free do Google
+- ✅ **Link público** - Compartilhe com outros
+
+**[📓 Abrir no Colab →](https://colab.research.google.com/github/sterling9879/Automation-Ugc/blob/main/LipSync_Video_Generator.ipynb)** | **[📖 Guia Colab](COLAB_GUIDE.md)**
+
+### 2️⃣ **Versão Web (Gradio)** - Para Desenvolvimento
+- Interface web local
+- Ideal para uso pessoal
+- Fácil atualização via git
+- Acesso remoto opcional
+
+**[📖 Guia de Instalação](QUICKSTART.md)**
+
+### 3️⃣ **Versão GUI Desktop** - Para Distribuição
+- Aplicação Windows nativa (PyQt5)
+- Interface profissional sem console
+- Ideal para usuário final
+- Build para .exe standalone
+
+**[📖 Guia GUI](GUI_APP_GUIDE.md)** | **[📖 Como Buildar](BUILD_GUIDE.md)**
+
+**Comparação completa:** [VERSOES.md](VERSOES.md)
+
+---
 
 ## 📋 Pré-requisitos
 
