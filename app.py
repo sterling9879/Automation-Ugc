@@ -92,6 +92,7 @@ def process_video_generation(
     voice_name: str,
     model_id: str,
     images: List[gr.File],
+    max_workers: int,
     progress=gr.Progress()
 ) -> Tuple[Optional[str], str, str]:
     """
@@ -102,6 +103,7 @@ def process_video_generation(
         voice_name: Nome da voz selecionada
         model_id: Modelo ElevenLabs a usar
         images: Lista de imagens enviadas
+        max_workers: Número de requisições simultâneas para WaveSpeed
         progress: Objeto de progresso do Gradio
 
     Returns:
@@ -143,14 +145,15 @@ def process_video_generation(
         if error:
             return None, "", f"❌ Erro na validação: {error}"
 
-        # Processa job
+        # Processa job com max_workers configurável
         def update_gradio_progress(message: str, percent: int):
             """Callback para atualizar progresso no Gradio"""
             progress(percent / 100, desc=message)
 
         final_video = job_manager.process_job(
             job=job,
-            progress_callback=update_gradio_progress
+            progress_callback=update_gradio_progress,
+            max_workers_video=max_workers
         )
 
         # Retorna vídeo gerado
@@ -173,6 +176,131 @@ def process_video_generation(
         logger.error(error_msg)
         return None, "", error_msg
 
+def process_multiple_scripts(
+    scripts_file: gr.File,
+    voice_name: str,
+    model_id: str,
+    images: List[gr.File],
+    max_workers: int,
+    progress=gr.Progress()
+) -> Tuple[Optional[str], str, str]:
+    """
+    Processa múltiplos roteiros em sequência
+
+    Args:
+        scripts_file: Arquivo de texto com múltiplos roteiros separados por "---"
+        voice_name: Nome da voz selecionada
+        model_id: Modelo ElevenLabs a usar
+        images: Lista de imagens enviadas
+        max_workers: Número de requisições simultâneas para WaveSpeed
+        progress: Objeto de progresso do Gradio
+
+    Returns:
+        (ultimo_video, status_message, error_message)
+    """
+    try:
+        # Valida arquivo
+        if not scripts_file:
+            return None, "", "❌ Por favor, faça upload do arquivo com os roteiros"
+
+        if not images or len(images) == 0:
+            return None, "", "❌ Por favor, faça upload de pelo menos uma imagem"
+
+        # Lê arquivo e separa roteiros
+        file_path = scripts_file.name if hasattr(scripts_file, 'name') else scripts_file
+
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        # Separa roteiros por "---"
+        scripts = [s.strip() for s in content.split('---') if s.strip()]
+
+        if not scripts:
+            return None, "", "❌ Nenhum roteiro encontrado. Separe os roteiros com '---'"
+
+        logger.info(f"📝 Encontrados {len(scripts)} roteiros para processar")
+
+        # Extrai paths das imagens
+        image_paths = []
+        for img in images:
+            if hasattr(img, 'name'):
+                image_paths.append(img.name)
+            elif isinstance(img, str):
+                image_paths.append(img)
+
+        # Processa cada roteiro
+        results = []
+        videos_gerados = []
+
+        for idx, script in enumerate(scripts, 1):
+            try:
+                progress((idx - 1) / len(scripts), desc=f"Processando roteiro {idx}/{len(scripts)}...")
+
+                logger.info(f"🎬 Iniciando roteiro {idx}/{len(scripts)}")
+
+                # Cria job
+                job, error = job_manager.create_job(
+                    input_text=script,
+                    voice_name=voice_name,
+                    image_paths=image_paths,
+                    model_id=model_id
+                )
+
+                if error:
+                    results.append(f"❌ Roteiro {idx}: Erro na validação - {error}")
+                    continue
+
+                # Processa job
+                def update_progress(message: str, percent: int):
+                    base_progress = (idx - 1) / len(scripts)
+                    current_progress = base_progress + (percent / 100) / len(scripts)
+                    progress(current_progress, desc=f"Roteiro {idx}/{len(scripts)}: {message}")
+
+                final_video = job_manager.process_job(
+                    job=job,
+                    progress_callback=update_progress,
+                    max_workers_video=max_workers
+                )
+
+                videos_gerados.append(final_video)
+                duration = (job.completed_at - job.created_at).total_seconds()
+                results.append(f"✅ Roteiro {idx}: Concluído em {duration:.1f}s - {final_video}")
+                logger.info(f"✅ Roteiro {idx} concluído: {final_video}")
+
+            except Exception as e:
+                results.append(f"❌ Roteiro {idx}: Erro - {str(e)}")
+                logger.error(f"Erro no roteiro {idx}: {e}")
+                continue
+
+        # Resultado final
+        success_count = len(videos_gerados)
+        total_count = len(scripts)
+
+        status_message = f"""
+🎬 **Processamento em Lote Concluído**
+
+📊 **Resumo:**
+- Total de roteiros: {total_count}
+- Vídeos gerados: {success_count}
+- Falhas: {total_count - success_count}
+
+📹 **Resultados:**
+
+{"".join(f"{r}\n" for r in results)}
+
+🎉 Todos os vídeos foram salvos em suas respectivas pastas temp/job_*
+"""
+
+        # Retorna o último vídeo gerado (se houver)
+        ultimo_video = videos_gerados[-1] if videos_gerados else None
+
+        return str(ultimo_video) if ultimo_video else None, status_message, ""
+
+    except Exception as e:
+        error_msg = f"❌ Erro durante processamento em lote: {str(e)}"
+        logger.error(error_msg)
+        return None, "", error_msg
+
 def create_interface():
     """Cria interface Gradio"""
 
@@ -189,71 +317,164 @@ def create_interface():
 
         Transforme seu roteiro em vídeos profissionais com sincronização labial automática!
 
-        ### 📋 Como usar:
-        1. **Digite ou cole seu roteiro** no campo de texto
-        2. **Selecione a voz** do apresentador (ElevenLabs)
-        3. **Faça upload das imagens** do apresentador (diferentes ângulos)
-        4. **Clique em "Gerar Vídeo"** e aguarde o processamento
+        ### 📋 Modos disponíveis:
+        - **Vídeo Único**: Processa um roteiro por vez
+        - **Processamento em Lote**: Processa múltiplos roteiros sequencialmente
 
         ---
         """)
 
-        with gr.Row():
-            with gr.Column(scale=2):
+        with gr.Tabs():
+            # TAB 1: Vídeo Único
+            with gr.Tab("🎬 Vídeo Único"):
+                with gr.Row():
+                    with gr.Column(scale=2):
 
-                # INPUT: Texto
-                text_input = gr.Textbox(
-                    label="📝 Roteiro do Vídeo",
-                    placeholder="Digite ou cole o texto completo do seu roteiro aqui...\n\nCada parágrafo será processado separadamente.",
-                    lines=15,
-                    max_lines=30
-                )
+                        # INPUT: Texto
+                        text_input = gr.Textbox(
+                            label="📝 Roteiro do Vídeo",
+                            placeholder="Digite ou cole o texto completo do seu roteiro aqui...\n\nCada parágrafo será processado separadamente.",
+                            lines=15,
+                            max_lines=30
+                        )
 
-                # INPUT: Voz
-                voice_dropdown = gr.Dropdown(
-                    label="🎤 Selecione a Voz (ElevenLabs)",
-                    choices=get_voice_choices(),
-                    value=get_voice_choices()[0] if get_voice_choices() else None
-                )
+                        # INPUT: Voz
+                        voice_dropdown = gr.Dropdown(
+                            label="🎤 Selecione a Voz (ElevenLabs)",
+                            choices=get_voice_choices(),
+                            value=get_voice_choices()[0] if get_voice_choices() else None
+                        )
 
-                # INPUT: Modelo
-                model_dropdown = gr.Dropdown(
-                    label="🤖 Selecione o Modelo de Voz (ElevenLabs)",
-                    choices=get_model_choices(),
-                    value="eleven_multilingual_v3"
-                )
+                        # INPUT: Modelo
+                        model_dropdown = gr.Dropdown(
+                            label="🤖 Selecione o Modelo de Voz (ElevenLabs)",
+                            choices=get_model_choices(),
+                            value="eleven_multilingual_v3"
+                        )
 
-                # INPUT: Imagens
-                images_input = gr.File(
-                    label="🖼️ Imagens do Apresentador (1-20 imagens PNG/JPG)",
-                    file_count="multiple",
-                    file_types=["image"]
-                )
+                        # INPUT: Imagens
+                        images_input = gr.File(
+                            label="🖼️ Imagens do Apresentador (1-20 imagens PNG/JPG)",
+                            file_count="multiple",
+                            file_types=["image"]
+                        )
 
-                # Botão de estimativa
-                estimate_btn = gr.Button("📊 Estimar Custo e Tempo", variant="secondary", size="sm")
+                        # INPUT: Max Workers
+                        max_workers_single = gr.Slider(
+                            label="⚡ Vídeos Simultâneos no WaveSpeed",
+                            info="Quantos vídeos processar ao mesmo tempo no WaveSpeed (mais = mais rápido, mas usa mais créditos)",
+                            minimum=1,
+                            maximum=10,
+                            value=3,
+                            step=1
+                        )
 
-                # Área de estimativa
-                estimate_output = gr.Markdown(label="Estimativa")
+                        # Botão de estimativa
+                        estimate_btn = gr.Button("📊 Estimar Custo e Tempo", variant="secondary", size="sm")
 
-                # Botão de processar
-                process_btn = gr.Button("🎬 Gerar Vídeo", variant="primary", size="lg")
+                        # Área de estimativa
+                        estimate_output = gr.Markdown(label="Estimativa")
 
-            with gr.Column(scale=1):
+                        # Botão de processar
+                        process_btn = gr.Button("🎬 Gerar Vídeo", variant="primary", size="lg")
 
-                gr.Markdown("### 🎯 Status do Processamento")
+                    with gr.Column(scale=1):
 
-                # Mensagem de sucesso
-                status_output = gr.Markdown(label="Status")
+                        gr.Markdown("### 🎯 Status do Processamento")
 
-                # Mensagem de erro
-                error_output = gr.Markdown(label="Erro")
+                        # Mensagem de sucesso
+                        status_output = gr.Markdown(label="Status")
 
-                # OUTPUT: Vídeo final
-                video_output = gr.Video(
-                    label="🎥 Vídeo Final",
-                    format="mp4"
-                )
+                        # Mensagem de erro
+                        error_output = gr.Markdown(label="Erro")
+
+                        # OUTPUT: Vídeo final
+                        video_output = gr.Video(
+                            label="🎥 Vídeo Final",
+                            format="mp4"
+                        )
+
+            # TAB 2: Processamento em Lote
+            with gr.Tab("📚 Processamento em Lote"):
+                gr.Markdown("""
+                ### 📋 Como usar o processamento em lote:
+
+                1. Crie um arquivo `.txt` com múltiplos roteiros
+                2. Separe cada roteiro com uma linha contendo apenas `---`
+                3. Faça upload do arquivo abaixo
+                4. Configure as opções e clique em "Processar Lote"
+
+                **Exemplo de arquivo:**
+                ```
+                Olá! Este é o primeiro roteiro.
+                Ele será processado primeiro.
+                ---
+                Este é o segundo roteiro.
+                Será processado após o primeiro.
+                ---
+                E este é o terceiro roteiro.
+                ```
+                """)
+
+                with gr.Row():
+                    with gr.Column(scale=2):
+
+                        # INPUT: Arquivo de roteiros
+                        scripts_file_input = gr.File(
+                            label="📄 Arquivo de Roteiros (.txt)",
+                            file_types=[".txt"],
+                            file_count="single"
+                        )
+
+                        # INPUT: Voz (batch)
+                        voice_dropdown_batch = gr.Dropdown(
+                            label="🎤 Selecione a Voz (ElevenLabs)",
+                            choices=get_voice_choices(),
+                            value=get_voice_choices()[0] if get_voice_choices() else None
+                        )
+
+                        # INPUT: Modelo (batch)
+                        model_dropdown_batch = gr.Dropdown(
+                            label="🤖 Selecione o Modelo de Voz (ElevenLabs)",
+                            choices=get_model_choices(),
+                            value="eleven_multilingual_v3"
+                        )
+
+                        # INPUT: Imagens (batch)
+                        images_input_batch = gr.File(
+                            label="🖼️ Imagens do Apresentador (1-20 imagens PNG/JPG)",
+                            file_count="multiple",
+                            file_types=["image"]
+                        )
+
+                        # INPUT: Max Workers (batch)
+                        max_workers_batch = gr.Slider(
+                            label="⚡ Vídeos Simultâneos no WaveSpeed (por roteiro)",
+                            info="Quantos vídeos processar ao mesmo tempo no WaveSpeed para CADA roteiro",
+                            minimum=1,
+                            maximum=10,
+                            value=3,
+                            step=1
+                        )
+
+                        # Botão de processar lote
+                        process_batch_btn = gr.Button("🎬 Processar Lote", variant="primary", size="lg")
+
+                    with gr.Column(scale=1):
+
+                        gr.Markdown("### 🎯 Status do Processamento")
+
+                        # Mensagem de sucesso (batch)
+                        status_output_batch = gr.Markdown(label="Status")
+
+                        # Mensagem de erro (batch)
+                        error_output_batch = gr.Markdown(label="Erro")
+
+                        # OUTPUT: Último vídeo gerado
+                        video_output_batch = gr.Video(
+                            label="🎥 Último Vídeo Gerado",
+                            format="mp4"
+                        )
 
         # Informações adicionais
         with gr.Accordion("ℹ️ Informações Técnicas", open=False):
@@ -303,7 +524,7 @@ Vamos começar!"""
                 interactive=False
             )
 
-        # Conecta eventos
+        # Conecta eventos - Vídeo Único
         estimate_btn.click(
             fn=estimate_job,
             inputs=[text_input],
@@ -312,8 +533,15 @@ Vamos começar!"""
 
         process_btn.click(
             fn=process_video_generation,
-            inputs=[text_input, voice_dropdown, model_dropdown, images_input],
+            inputs=[text_input, voice_dropdown, model_dropdown, images_input, max_workers_single],
             outputs=[video_output, status_output, error_output]
+        )
+
+        # Conecta eventos - Processamento em Lote
+        process_batch_btn.click(
+            fn=process_multiple_scripts,
+            inputs=[scripts_file_input, voice_dropdown_batch, model_dropdown_batch, images_input_batch, max_workers_batch],
+            outputs=[video_output_batch, status_output_batch, error_output_batch]
         )
 
         # Footer

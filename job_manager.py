@@ -180,7 +180,8 @@ class JobManager:
     def process_job(
         self,
         job: Job,
-        progress_callback: Optional[Callable[[str, int], None]] = None
+        progress_callback: Optional[Callable[[str, int], None]] = None,
+        max_workers_video: int = 3
     ) -> Path:
         """
         Processa um job completo
@@ -188,6 +189,7 @@ class JobManager:
         Args:
             job: Job a processar
             progress_callback: Função de callback para progresso (message, percent)
+            max_workers_video: Número máximo de vídeos processados simultaneamente no WaveSpeed (padrão: 3)
 
         Returns:
             Path do vídeo final gerado
@@ -248,7 +250,8 @@ class JobManager:
                 audios=job.audios,
                 image_paths=job.image_paths,
                 output_dir=job.job_dir,
-                progress_callback=lambda msg: update_progress(msg, 60)
+                progress_callback=lambda msg: update_progress(msg, 60),
+                max_workers=max_workers_video
             )
 
             # Verifica se todos os vídeos foram gerados

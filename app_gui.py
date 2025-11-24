@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QTextEdit, QComboBox, QPushButton, QProgressBar,
     QFileDialog, QListWidget, QGroupBox, QMessageBox, QSplitter,
-    QScrollArea, QFrame, QStatusBar, QTabWidget
+    QScrollArea, QFrame, QStatusBar, QTabWidget, QSpinBox
 )
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from PyQt5.QtGui import QIcon, QFont, QPixmap
@@ -27,13 +27,14 @@ class WorkerThread(QThread):
     finished = pyqtSignal(str, bool)  # (resultado, sucesso)
     error = pyqtSignal(str)
 
-    def __init__(self, job_manager, text, voice, model, images):
+    def __init__(self, job_manager, text, voice, model, images, max_workers=3):
         super().__init__()
         self.job_manager = job_manager
         self.text = text
         self.voice = voice
         self.model = model
         self.images = images
+        self.max_workers = max_workers
 
     def run(self):
         """Executa processamento em background"""
@@ -51,11 +52,15 @@ class WorkerThread(QThread):
                 self.error.emit(f"Erro na validação: {error}")
                 return
 
-            # Processa job
+            # Processa job com max_workers configurável
             def update_progress(msg: str, percent: int):
                 self.progress.emit(msg, percent)
 
-            final_video = self.job_manager.process_job(job, update_progress)
+            final_video = self.job_manager.process_job(
+                job=job,
+                progress_callback=update_progress,
+                max_workers_video=self.max_workers
+            )
 
             self.finished.emit(str(final_video), True)
 
@@ -207,6 +212,15 @@ class LipSyncApp(QMainWindow):
             "eleven_monolingual_v1 (Inglês apenas)"
         ])
         voice_layout.addWidget(self.model_combo)
+
+        # Max Workers
+        voice_layout.addWidget(QLabel("Vídeos Simultâneos no WaveSpeed:"))
+        self.max_workers_spin = QSpinBox()
+        self.max_workers_spin.setMinimum(1)
+        self.max_workers_spin.setMaximum(10)
+        self.max_workers_spin.setValue(3)
+        self.max_workers_spin.setToolTip("Quantos vídeos processar ao mesmo tempo no WaveSpeed\n(Mais = mais rápido, mas usa mais créditos)")
+        voice_layout.addWidget(self.max_workers_spin)
 
         voice_group.setLayout(voice_layout)
         layout.addWidget(voice_group)
@@ -440,6 +454,9 @@ class LipSyncApp(QMainWindow):
         model_text = self.model_combo.currentText()
         model = model_text.split(" ")[0]  # Extrai ID do modelo
 
+        # Obtém max_workers
+        max_workers = self.max_workers_spin.value()
+
         # Confirmação
         reply = QMessageBox.question(
             self,
@@ -448,7 +465,8 @@ class LipSyncApp(QMainWindow):
             f"• Roteiro: {len(text)} caracteres\n"
             f"• Voz: {voice}\n"
             f"• Modelo: {model}\n"
-            f"• Imagens: {len(self.image_paths)}\n\n"
+            f"• Imagens: {len(self.image_paths)}\n"
+            f"• Vídeos simultâneos: {max_workers}\n\n"
             f"Este processo pode levar vários minutos.",
             QMessageBox.Yes | QMessageBox.No
         )
@@ -472,7 +490,8 @@ class LipSyncApp(QMainWindow):
             text,
             voice,
             model,
-            self.image_paths
+            self.image_paths,
+            max_workers
         )
         self.worker.progress.connect(self.update_progress)
         self.worker.finished.connect(self.on_finished)
