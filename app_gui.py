@@ -197,11 +197,14 @@ class LipSyncApp(QMainWindow):
         voice_layout.addWidget(QLabel("Modelo de Voz:"))
         self.model_combo = QComboBox()
         self.model_combo.addItems([
-            "eleven_multilingual_v2 (Melhor qualidade)",
-            "eleven_turbo_v2_5 (Mais rápido)",
-            "eleven_turbo_v2 (Rápido)",
+            "eleven_multilingual_v3 🌟 (Mais recente, melhor qualidade)",
+            "eleven_turbo_v3 ⚡ (Mais rápido, tempo real)",
+            "eleven_flash_v3 🚀 (Ultra rápido, baixa latência)",
+            "eleven_multilingual_v2 (Melhor qualidade v2)",
+            "eleven_turbo_v2_5 (Rápido e eficiente)",
+            "eleven_turbo_v2 (Versão anterior rápida)",
             "eleven_multilingual_v1 (Legado)",
-            "eleven_monolingual_v1 (Inglês)"
+            "eleven_monolingual_v1 (Inglês apenas)"
         ])
         voice_layout.addWidget(self.model_combo)
 

@@ -85,7 +85,7 @@ class AudioGenerator:
         text: str,
         voice_id: str,
         output_path: Path,
-        model_id: str = "eleven_multilingual_v2"
+        model_id: str = "eleven_multilingual_v3"
     ) -> Path:
         """
         Gera áudio a partir de texto
@@ -134,7 +134,7 @@ class AudioGenerator:
         texts: List[Dict],
         voice_id: str,
         output_dir: Path,
-        model_id: str = "eleven_multilingual_v2",
+        model_id: str = "eleven_multilingual_v3",
         progress_callback=None,
         max_workers: int = None
     ) -> List[Dict]:
@@ -146,7 +146,7 @@ class AudioGenerator:
                    [{'batch_number': 1, 'formatted_text': '...', ...}, ...]
             voice_id: ID da voz a usar
             output_dir: Diretório para salvar áudios
-            model_id: Modelo ElevenLabs a usar (padrão: eleven_multilingual_v2)
+            model_id: Modelo ElevenLabs a usar (padrão: eleven_multilingual_v3)
             progress_callback: Função de callback para progresso
             max_workers: Número máximo de workers paralelos (None = auto)
 

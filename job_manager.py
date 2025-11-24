@@ -30,7 +30,7 @@ class JobStatus(Enum):
 class Job:
     """Representa um job de geração de vídeo"""
 
-    def __init__(self, job_id: str, input_text: str, voice_name: str, image_paths: List[str], model_id: str = "eleven_multilingual_v2"):
+    def __init__(self, job_id: str, input_text: str, voice_name: str, image_paths: List[str], model_id: str = "eleven_multilingual_v3"):
         """
         Inicializa um novo job
 
@@ -145,7 +145,7 @@ class JobManager:
         input_text: str,
         voice_name: str,
         image_paths: List[str],
-        model_id: str = "eleven_multilingual_v2"
+        model_id: str = "eleven_multilingual_v3"
     ) -> tuple[Optional[Job], Optional[str]]:
         """
         Cria um novo job após validações
