@@ -105,10 +105,10 @@ class AudioGenerator:
         try:
             logger.info(f"Gerando áudio para: {output_path.name}")
 
-            # Gera áudio usando a API text_to_speech
+            # Gera áudio usando a API text_to_speech (sintaxe v3)
             audio_data = self.client.text_to_speech.convert(
-                voice_id=voice_id,
                 text=text,
+                voice_id=voice_id,
                 model_id=model_id,
                 output_format="mp3_44100_128"
             )
