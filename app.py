@@ -12,27 +12,63 @@ from utils import get_logger
 
 logger = get_logger(__name__)
 
-# Inicializa gerenciador de jobs
-job_manager = JobManager()
+def get_audio_provider_choices() -> List[tuple]:
+    """Retorna lista de provedores de áudio disponíveis"""
+    providers = []
 
-# Inicializa gerador de áudio para obter vozes
-audio_generator = AudioGenerator()
+    if Config.ELEVENLABS_API_KEY:
+        providers.append(("ElevenLabs (Text-to-Speech v3)", "elevenlabs"))
 
-def get_voice_choices() -> List[str]:
-    """Obtém lista de vozes disponíveis do ElevenLabs"""
+    if Config.MINIMAX_API_KEY:
+        providers.append(("MiniMax Audio (Text-to-Speech)", "minimax"))
+
+    if not providers:
+        providers.append(("⚠️ Nenhum provedor configurado", "none"))
+
+    return providers
+
+def get_voice_choices(provider: str = None) -> List[str]:
+    """
+    Obtém lista de vozes disponíveis do provedor especificado
+
+    Args:
+        provider: 'elevenlabs' ou 'minimax' (padrão: config)
+    """
     try:
-        voices = audio_generator.get_available_voices()
+        if provider is None:
+            provider = Config.AUDIO_PROVIDER
+
+        if provider == 'none':
+            return ["⚠️ Configure uma API Key no arquivo .env"]
+
+        audio_gen = AudioGenerator(provider=provider)
+        voices = audio_gen.get_available_voices()
+
         if voices and len(voices) > 0:
             return [voice['name'] for voice in voices]
         else:
-            logger.warning("Nenhuma voz disponível do ElevenLabs")
-            return ["⚠️ Configure a API Key do ElevenLabs no arquivo .env"]
+            logger.warning(f"Nenhuma voz disponível do {provider}")
+            return [f"⚠️ Configure a API Key do {provider} no arquivo .env"]
+
     except Exception as e:
-        logger.error(f"Erro ao obter vozes do ElevenLabs: {e}")
-        print(f"\n⚠️  AVISO: Não foi possível conectar ao ElevenLabs")
-        print(f"   Verifique se a ELEVENLABS_API_KEY no arquivo .env está correta")
+        logger.error(f"Erro ao obter vozes do {provider}: {e}")
+        print(f"\n⚠️  AVISO: Não foi possível conectar ao {provider}")
+        print(f"   Verifique se a API Key no arquivo .env está correta")
         print(f"   Erro: {e}\n")
-        return ["⚠️ Erro ao conectar - Verifique a API Key do ElevenLabs"]
+        return [f"⚠️ Erro ao conectar - Verifique a API Key do {provider}"]
+
+def update_voices_by_provider(provider: str):
+    """
+    Atualiza lista de vozes quando o provedor muda
+
+    Args:
+        provider: 'elevenlabs' ou 'minimax'
+
+    Returns:
+        gr.Dropdown.update com novas escolhas
+    """
+    voices = get_voice_choices(provider)
+    return gr.Dropdown(choices=voices, value=voices[0] if voices else None)
 
 def get_model_choices() -> List[tuple]:
     """Obtém lista de modelos ElevenLabs disponíveis"""
@@ -61,7 +97,9 @@ def estimate_job(text: str) -> str:
         if not text or not text.strip():
             return "⚠️ Digite um texto para ver as estimativas"
 
-        estimate = job_manager.get_job_estimate(text)
+        # Cria instância temporária para estimativa (provedor não importa para estimativa)
+        temp_mgr = JobManager()
+        estimate = temp_mgr.get_job_estimate(text)
 
         output = f"""
 📊 **Estimativa de Processamento**
@@ -89,6 +127,7 @@ def estimate_job(text: str) -> str:
 
 def process_video_generation(
     text: str,
+    provider: str,
     voice_name: str,
     model_id: str,
     images: List[gr.File],
@@ -100,8 +139,9 @@ def process_video_generation(
 
     Args:
         text: Texto de entrada
+        provider: Provedor de áudio ('elevenlabs' ou 'minimax')
         voice_name: Nome da voz selecionada
-        model_id: Modelo ElevenLabs a usar
+        model_id: Modelo a usar (relevante para ElevenLabs)
         images: Lista de imagens enviadas
         max_workers: Número de requisições simultâneas para WaveSpeed
         progress: Objeto de progresso do Gradio
@@ -130,12 +170,13 @@ def process_video_generation(
         if not image_paths:
             return None, "", "❌ Não foi possível processar as imagens enviadas"
 
-        logger.info(f"Iniciando processamento com {len(image_paths)} imagens")
+        logger.info(f"Iniciando processamento com {len(image_paths)} imagens e provedor {provider}")
 
-        # Cria job
+        # Cria job manager com provedor escolhido
         progress(0, desc="Criando job...")
+        job_mgr = JobManager(audio_provider=provider)
 
-        job, error = job_manager.create_job(
+        job, error = job_mgr.create_job(
             input_text=text,
             voice_name=voice_name,
             image_paths=image_paths,
@@ -150,7 +191,7 @@ def process_video_generation(
             """Callback para atualizar progresso no Gradio"""
             progress(percent / 100, desc=message)
 
-        final_video = job_manager.process_job(
+        final_video = job_mgr.process_job(
             job=job,
             progress_callback=update_gradio_progress,
             max_workers_video=max_workers
@@ -178,6 +219,7 @@ def process_video_generation(
 
 def process_multiple_scripts(
     scripts_file: gr.File,
+    provider: str,
     voice_name: str,
     model_id: str,
     images: List[gr.File],
@@ -189,8 +231,9 @@ def process_multiple_scripts(
 
     Args:
         scripts_file: Arquivo de texto com múltiplos roteiros separados por "---"
+        provider: Provedor de áudio ('elevenlabs' ou 'minimax')
         voice_name: Nome da voz selecionada
-        model_id: Modelo ElevenLabs a usar
+        model_id: Modelo a usar (relevante para ElevenLabs)
         images: Lista de imagens enviadas
         max_workers: Número de requisições simultâneas para WaveSpeed
         progress: Objeto de progresso do Gradio
@@ -228,6 +271,9 @@ def process_multiple_scripts(
             elif isinstance(img, str):
                 image_paths.append(img)
 
+        # Cria job manager com provedor escolhido
+        job_mgr = JobManager(audio_provider=provider)
+
         # Processa cada roteiro
         results = []
         videos_gerados = []
@@ -236,10 +282,10 @@ def process_multiple_scripts(
             try:
                 progress((idx - 1) / len(scripts), desc=f"Processando roteiro {idx}/{len(scripts)}...")
 
-                logger.info(f"🎬 Iniciando roteiro {idx}/{len(scripts)}")
+                logger.info(f"🎬 Iniciando roteiro {idx}/{len(scripts)} com provedor {provider}")
 
                 # Cria job
-                job, error = job_manager.create_job(
+                job, error = job_mgr.create_job(
                     input_text=script,
                     voice_name=voice_name,
                     image_paths=image_paths,
@@ -256,7 +302,7 @@ def process_multiple_scripts(
                     current_progress = base_progress + (percent / 100) / len(scripts)
                     progress(current_progress, desc=f"Roteiro {idx}/{len(scripts)}: {message}")
 
-                final_video = job_manager.process_job(
+                final_video = job_mgr.process_job(
                     job=job,
                     progress_callback=update_progress,
                     max_workers_video=max_workers
@@ -338,18 +384,29 @@ def create_interface():
                             max_lines=30
                         )
 
+                        # INPUT: Provedor de Áudio
+                        provider_dropdown = gr.Dropdown(
+                            label="🔊 Provedor de Áudio",
+                            choices=get_audio_provider_choices(),
+                            value=get_audio_provider_choices()[0][1] if get_audio_provider_choices() else "elevenlabs",
+                            info="Escolha o serviço de síntese de voz"
+                        )
+
                         # INPUT: Voz
                         voice_dropdown = gr.Dropdown(
-                            label="🎤 Selecione a Voz (ElevenLabs)",
-                            choices=get_voice_choices(),
-                            value=get_voice_choices()[0] if get_voice_choices() else None
+                            label="🎤 Selecione a Voz",
+                            choices=[],
+                            value=None,
+                            info="As vozes serão carregadas de acordo com o provedor selecionado"
                         )
 
                         # INPUT: Modelo
                         model_dropdown = gr.Dropdown(
                             label="🤖 Selecione o Modelo de Voz (ElevenLabs)",
                             choices=get_model_choices(),
-                            value="eleven_multilingual_v3"
+                            value="eleven_multilingual_v3",
+                            visible=True,
+                            info="Relevante apenas para ElevenLabs"
                         )
 
                         # INPUT: Imagens
@@ -426,18 +483,28 @@ def create_interface():
                             file_count="single"
                         )
 
+                        # INPUT: Provedor de Áudio (batch)
+                        provider_dropdown_batch = gr.Dropdown(
+                            label="🔊 Provedor de Áudio",
+                            choices=get_audio_provider_choices(),
+                            value=get_audio_provider_choices()[0][1] if get_audio_provider_choices() else "elevenlabs",
+                            info="Escolha o serviço de síntese de voz"
+                        )
+
                         # INPUT: Voz (batch)
                         voice_dropdown_batch = gr.Dropdown(
-                            label="🎤 Selecione a Voz (ElevenLabs)",
-                            choices=get_voice_choices(),
-                            value=get_voice_choices()[0] if get_voice_choices() else None
+                            label="🎤 Selecione a Voz",
+                            choices=[],
+                            value=None,
+                            info="As vozes serão carregadas de acordo com o provedor selecionado"
                         )
 
                         # INPUT: Modelo (batch)
                         model_dropdown_batch = gr.Dropdown(
                             label="🤖 Selecione o Modelo de Voz (ElevenLabs)",
                             choices=get_model_choices(),
-                            value="eleven_multilingual_v3"
+                            value="eleven_multilingual_v3",
+                            info="Relevante apenas para ElevenLabs"
                         )
 
                         # INPUT: Imagens (batch)
@@ -525,6 +592,13 @@ Vamos começar!"""
             )
 
         # Conecta eventos - Vídeo Único
+        # Atualiza vozes quando provider muda
+        provider_dropdown.change(
+            fn=update_voices_by_provider,
+            inputs=[provider_dropdown],
+            outputs=[voice_dropdown]
+        )
+
         estimate_btn.click(
             fn=estimate_job,
             inputs=[text_input],
@@ -533,14 +607,21 @@ Vamos começar!"""
 
         process_btn.click(
             fn=process_video_generation,
-            inputs=[text_input, voice_dropdown, model_dropdown, images_input, max_workers_single],
+            inputs=[text_input, provider_dropdown, voice_dropdown, model_dropdown, images_input, max_workers_single],
             outputs=[video_output, status_output, error_output]
         )
 
         # Conecta eventos - Processamento em Lote
+        # Atualiza vozes quando provider muda (batch)
+        provider_dropdown_batch.change(
+            fn=update_voices_by_provider,
+            inputs=[provider_dropdown_batch],
+            outputs=[voice_dropdown_batch]
+        )
+
         process_batch_btn.click(
             fn=process_multiple_scripts,
-            inputs=[scripts_file_input, voice_dropdown_batch, model_dropdown_batch, images_input_batch, max_workers_batch],
+            inputs=[scripts_file_input, provider_dropdown_batch, voice_dropdown_batch, model_dropdown_batch, images_input_batch, max_workers_batch],
             outputs=[video_output_batch, status_output_batch, error_output_batch]
         )
 

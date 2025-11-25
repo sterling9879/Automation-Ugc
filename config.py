@@ -13,8 +13,12 @@ class Config:
 
     # API Keys
     ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY')
+    MINIMAX_API_KEY = os.getenv('MINIMAX_API_KEY')
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
     WAVESPEED_API_KEY = os.getenv('WAVESPEED_API_KEY')
+
+    # Audio Provider (elevenlabs ou minimax)
+    AUDIO_PROVIDER = os.getenv('AUDIO_PROVIDER', 'elevenlabs')
 
     # Configurações Gerais
     MAX_CONCURRENT_REQUESTS = int(os.getenv('MAX_CONCURRENT_REQUESTS', 10))
@@ -44,9 +48,17 @@ class Config:
     def validate(cls):
         """Valida se todas as configurações necessárias estão presentes"""
         errors = []
+        warnings = []
+
+        # Pelo menos um provedor de áudio deve estar configurado
+        if not cls.ELEVENLABS_API_KEY and not cls.MINIMAX_API_KEY:
+            errors.append("Nenhum provedor de áudio configurado (ELEVENLABS_API_KEY ou MINIMAX_API_KEY)")
 
         if not cls.ELEVENLABS_API_KEY:
-            errors.append("ELEVENLABS_API_KEY não configurada")
+            warnings.append("ELEVENLABS_API_KEY não configurada - ElevenLabs não estará disponível")
+
+        if not cls.MINIMAX_API_KEY:
+            warnings.append("MINIMAX_API_KEY não configurada - MiniMax não estará disponível")
 
         if not cls.GEMINI_API_KEY:
             errors.append("GEMINI_API_KEY não configurada")
@@ -56,6 +68,14 @@ class Config:
 
         if errors:
             raise ValueError(f"Erros de configuração:\n" + "\n".join(f"- {e}" for e in errors))
+
+        # Mostra warnings (não bloqueia execução)
+        if warnings:
+            import sys
+            print("\n⚠️  Avisos de configuração:", file=sys.stderr)
+            for w in warnings:
+                print(f"   - {w}", file=sys.stderr)
+            print()
 
         # Cria pasta temp se não existir
         cls.TEMP_FOLDER.mkdir(parents=True, exist_ok=True)

@@ -1,27 +1,186 @@
 """
-Módulo de geração de áudio usando ElevenLabs API
+Módulo de geração de áudio usando ElevenLabs ou MiniMax API
 """
 from elevenlabs import ElevenLabs
+import requests
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import Config
 from utils import get_logger, retry_with_backoff
 
 logger = get_logger(__name__)
 
-class AudioGenerator:
-    """Gera áudios usando ElevenLabs API"""
 
-    def __init__(self):
-        """Inicializa o gerador de áudio"""
-        self.client = ElevenLabs(api_key=Config.ELEVENLABS_API_KEY)
-        self.available_voices = None
-        logger.info("AudioGenerator inicializado")
+class MiniMaxClient:
+    """Cliente para MiniMax Audio API"""
+
+    def __init__(self, api_key: str):
+        """
+        Inicializa o cliente MiniMax
+
+        Args:
+            api_key: Chave da API MiniMax
+        """
+        self.api_key = api_key
+        self.base_url = "https://api.minimax.chat/v1/text_to_speech"
+        self.session = requests.Session()
+        logger.info("MiniMaxClient inicializado")
 
     def get_available_voices(self) -> List[Dict[str, str]]:
         """
-        Obtém lista de vozes disponíveis na conta ElevenLabs
+        Retorna lista de vozes disponíveis do MiniMax
+
+        Returns:
+            Lista de dicts com informações das vozes
+        """
+        # Vozes pré-definidas do MiniMax (baseado na documentação)
+        # Você pode expandir esta lista conforme a documentação oficial
+        return [
+            {'voice_id': 'male-qn-qingse', 'name': 'Male Qingse (CN)', 'language': 'zh'},
+            {'voice_id': 'male-qn-jingying', 'name': 'Male Jingying (CN)', 'language': 'zh'},
+            {'voice_id': 'male-qn-badao', 'name': 'Male Badao (CN)', 'language': 'zh'},
+            {'voice_id': 'female-shaonv', 'name': 'Female Shaonv (CN)', 'language': 'zh'},
+            {'voice_id': 'female-yujie', 'name': 'Female Yujie (CN)', 'language': 'zh'},
+            {'voice_id': 'female-chengshu', 'name': 'Female Chengshu (CN)', 'language': 'zh'},
+            {'voice_id': 'presenter_male', 'name': 'Presenter Male', 'language': 'en'},
+            {'voice_id': 'presenter_female', 'name': 'Presenter Female', 'language': 'en'},
+        ]
+
+    @retry_with_backoff(max_retries=3, base_delay=2.0)
+    def generate_audio(
+        self,
+        text: str,
+        voice_id: str = "female-shaonv",
+        output_path: Path = None,
+        speed: float = 1.0,
+        vol: float = 1.0,
+        pitch: int = 0,
+        output_format: str = "mp3"
+    ) -> Path:
+        """
+        Gera áudio a partir de texto usando MiniMax
+
+        Args:
+            text: Texto para sintetizar
+            voice_id: ID da voz a usar
+            output_path: Caminho para salvar o áudio
+            speed: Velocidade da fala (0.5 a 2.0)
+            vol: Volume (0.1 a 10.0)
+            pitch: Ajuste de tom (-12 a 12)
+            output_format: Formato de saída (mp3, wav, flac, pcm)
+
+        Returns:
+            Path do arquivo de áudio gerado
+
+        Raises:
+            Exception: Se a geração falhar
+        """
+        try:
+            logger.info(f"Gerando áudio MiniMax para: {output_path.name if output_path else 'temp'}")
+
+            payload = {
+                "text": text,
+                "voice_setting": {
+                    "voice_id": voice_id,
+                    "speed": speed,
+                    "vol": vol,
+                    "pitch": pitch
+                },
+                "audio_setting": {
+                    "format": output_format,
+                    "sample_rate": 32000,
+                    "bitrate": 128000,
+                    "channel": 1
+                }
+            }
+
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+
+            response = self.session.post(
+                self.base_url,
+                headers=headers,
+                json=payload,
+                timeout=60
+            )
+
+            response.raise_for_status()
+            data = response.json()
+
+            # Verifica se há erro
+            if data.get("base_resp", {}).get("status_code") != 0:
+                error_msg = data.get("base_resp", {}).get("status_msg", "Erro desconhecido")
+                raise Exception(f"MiniMax API error: {error_msg}")
+
+            # Obtém o áudio (pode ser hex ou URL dependendo da implementação)
+            audio_data = data.get("data", {}).get("audio")
+
+            if not audio_data:
+                raise Exception("Nenhum dado de áudio retornado pela API MiniMax")
+
+            # Salva arquivo
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Se for hex string, decodifica
+            if isinstance(audio_data, str) and all(c in '0123456789abcdefABCDEF' for c in audio_data[:100]):
+                audio_bytes = bytes.fromhex(audio_data)
+                with open(output_path, 'wb') as f:
+                    f.write(audio_bytes)
+            # Se for URL, baixa o arquivo
+            elif isinstance(audio_data, str) and audio_data.startswith('http'):
+                audio_response = requests.get(audio_data, timeout=120)
+                audio_response.raise_for_status()
+                with open(output_path, 'wb') as f:
+                    f.write(audio_response.content)
+            else:
+                raise Exception(f"Formato de áudio desconhecido: {type(audio_data)}")
+
+            logger.info(f"Áudio MiniMax gerado com sucesso: {output_path}")
+
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Erro ao gerar áudio MiniMax: {e}")
+            raise
+
+class AudioGenerator:
+    """Gera áudios usando ElevenLabs ou MiniMax API"""
+
+    def __init__(self, provider: str = None):
+        """
+        Inicializa o gerador de áudio
+
+        Args:
+            provider: 'elevenlabs' ou 'minimax' (padrão: config ou elevenlabs)
+        """
+        if provider is None:
+            provider = Config.AUDIO_PROVIDER
+
+        self.provider = provider.lower()
+        self.available_voices = None
+
+        # Inicializa o cliente apropriado
+        if self.provider == 'elevenlabs':
+            if not Config.ELEVENLABS_API_KEY:
+                raise ValueError("ELEVENLABS_API_KEY não configurada")
+            self.client = ElevenLabs(api_key=Config.ELEVENLABS_API_KEY)
+            logger.info("AudioGenerator inicializado com ElevenLabs")
+
+        elif self.provider == 'minimax':
+            if not Config.MINIMAX_API_KEY:
+                raise ValueError("MINIMAX_API_KEY não configurada")
+            self.client = MiniMaxClient(api_key=Config.MINIMAX_API_KEY)
+            logger.info("AudioGenerator inicializado com MiniMax")
+
+        else:
+            raise ValueError(f"Provedor de áudio inválido: {provider}. Use 'elevenlabs' ou 'minimax'")
+
+    def get_available_voices(self) -> List[Dict[str, str]]:
+        """
+        Obtém lista de vozes disponíveis (ElevenLabs ou MiniMax)
 
         Returns:
             Lista de dicts com informações das vozes:
@@ -32,24 +191,28 @@ class AudioGenerator:
         """
         try:
             if self.available_voices is None:
-                logger.info("Buscando vozes disponíveis...")
-                voices = self.client.voices.get_all()
+                logger.info(f"Buscando vozes disponíveis do {self.provider}...")
 
-                self.available_voices = [
-                    {
-                        'voice_id': voice.voice_id,
-                        'name': voice.name,
-                        'labels': voice.labels if hasattr(voice, 'labels') else {}
-                    }
-                    for voice in voices.voices
-                ]
+                if self.provider == 'elevenlabs':
+                    voices = self.client.voices.get_all()
+                    self.available_voices = [
+                        {
+                            'voice_id': voice.voice_id,
+                            'name': voice.name,
+                            'labels': voice.labels if hasattr(voice, 'labels') else {}
+                        }
+                        for voice in voices.voices
+                    ]
+
+                elif self.provider == 'minimax':
+                    self.available_voices = self.client.get_available_voices()
 
                 logger.info(f"Encontradas {len(self.available_voices)} vozes disponíveis")
 
             return self.available_voices
 
         except Exception as e:
-            logger.error(f"Erro ao buscar vozes: {e}")
+            logger.error(f"Erro ao buscar vozes do {self.provider}: {e}")
             # Retorna vozes padrão em caso de erro
             return [
                 {'voice_id': 'default', 'name': 'Default Voice', 'labels': {}}
@@ -88,13 +251,13 @@ class AudioGenerator:
         model_id: str = "eleven_multilingual_v3"
     ) -> Path:
         """
-        Gera áudio a partir de texto
+        Gera áudio a partir de texto (ElevenLabs ou MiniMax)
 
         Args:
             text: Texto para sintetizar
             voice_id: ID da voz a usar
             output_path: Caminho para salvar o áudio
-            model_id: Modelo ElevenLabs a usar
+            model_id: Modelo a usar (relevante apenas para ElevenLabs)
 
         Returns:
             Path do arquivo de áudio gerado
@@ -103,23 +266,36 @@ class AudioGenerator:
             Exception: Se a geração falhar após retries
         """
         try:
-            logger.info(f"Gerando áudio para: {output_path.name}")
+            logger.info(f"Gerando áudio ({self.provider}) para: {output_path.name}")
 
-            # Gera áudio usando a API text_to_speech (sintaxe v3)
-            audio_data = self.client.text_to_speech.convert(
-                text=text,
-                voice_id=voice_id,
-                model_id=model_id,
-                output_format="mp3_44100_128"
-            )
+            if self.provider == 'elevenlabs':
+                # Gera áudio usando ElevenLabs (sintaxe v3)
+                audio_data = self.client.text_to_speech.convert(
+                    text=text,
+                    voice_id=voice_id,
+                    model_id=model_id,
+                    output_format="mp3_44100_128"
+                )
 
-            # Salva arquivo
-            output_path.parent.mkdir(parents=True, exist_ok=True)
+                # Salva arquivo
+                output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(output_path, 'wb') as f:
-                # audio_data é um iterador de bytes
-                for chunk in audio_data:
-                    f.write(chunk)
+                with open(output_path, 'wb') as f:
+                    # audio_data é um iterador de bytes
+                    for chunk in audio_data:
+                        f.write(chunk)
+
+            elif self.provider == 'minimax':
+                # Gera áudio usando MiniMax
+                return self.client.generate_audio(
+                    text=text,
+                    voice_id=voice_id,
+                    output_path=output_path,
+                    speed=1.0,
+                    vol=1.0,
+                    pitch=0,
+                    output_format="mp3"
+                )
 
             logger.info(f"Áudio gerado com sucesso: {output_path}")
 

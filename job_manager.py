@@ -131,14 +131,19 @@ class Job:
 class JobManager:
     """Gerencia a execução de jobs de geração de vídeo"""
 
-    def __init__(self):
-        """Inicializa o gerenciador de jobs"""
+    def __init__(self, audio_provider: str = None):
+        """
+        Inicializa o gerenciador de jobs
+
+        Args:
+            audio_provider: 'elevenlabs' ou 'minimax' (padrão: config)
+        """
         self.text_processor = TextProcessor()
-        self.audio_generator = AudioGenerator()
+        self.audio_generator = AudioGenerator(provider=audio_provider)
         self.video_generator = VideoGenerator()
         self.video_concatenator = VideoConcatenator()
 
-        logger.info("JobManager inicializado")
+        logger.info(f"JobManager inicializado (audio: {self.audio_generator.provider})")
 
     def create_job(
         self,
