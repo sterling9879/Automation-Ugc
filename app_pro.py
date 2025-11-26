@@ -19,25 +19,26 @@ logger = get_logger(__name__)
 # Inicializa gerenciadores
 project_manager = ProjectManager()
 
-# CSS customizado para tema tecnológico
+# CSS customizado para tema claro
 CUSTOM_CSS = """
-/* Tema Dark/Tech Profissional */
+/* Tema Claro Profissional */
 :root {
-    --primary-color: #00d4ff;
+    --primary-color: #1e88e5;
     --secondary-color: #7b2cbf;
-    --success-color: #06ffa5;
-    --warning-color: #ffb627;
-    --danger-color: #ff006e;
-    --bg-dark: #0a0e27;
-    --bg-darker: #050816;
-    --bg-card: #1a1f3a;
-    --text-light: #e0e7ff;
-    --text-muted: #8b93b8;
+    --success-color: #00c853;
+    --warning-color: #ff9800;
+    --danger-color: #f44336;
+    --bg-white: #ffffff;
+    --bg-light: #f5f5f5;
+    --bg-card: #ffffff;
+    --text-dark: #212121;
+    --text-muted: #757575;
+    --border-light: #e0e0e0;
 }
 
 .gradio-container {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-    background: linear-gradient(135deg, var(--bg-darker) 0%, var(--bg-dark) 100%) !important;
+    background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%) !important;
 }
 
 /* Header Estilizado */
@@ -46,7 +47,7 @@ CUSTOM_CSS = """
     padding: 2rem;
     border-radius: 1rem;
     margin-bottom: 2rem;
-    box-shadow: 0 8px 32px rgba(0, 212, 255, 0.3);
+    box-shadow: 0 4px 16px rgba(30, 136, 229, 0.2);
 }
 
 .app-header h1 {
@@ -54,11 +55,11 @@ CUSTOM_CSS = """
     font-weight: 800 !important;
     font-size: 2.5rem !important;
     margin: 0 !important;
-    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 
 .app-header p {
-    color: rgba(255, 255, 255, 0.9) !important;
+    color: rgba(255, 255, 255, 0.95) !important;
     font-size: 1.1rem !important;
     margin-top: 0.5rem !important;
 }
@@ -66,16 +67,16 @@ CUSTOM_CSS = """
 /* Cards */
 .stat-card {
     background: var(--bg-card) !important;
-    border: 1px solid rgba(0, 212, 255, 0.2) !important;
+    border: 1px solid var(--border-light) !important;
     border-radius: 1rem !important;
     padding: 1.5rem !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
     transition: all 0.3s ease !important;
 }
 
 .stat-card:hover {
     border-color: var(--primary-color) !important;
-    box-shadow: 0 8px 24px rgba(0, 212, 255, 0.4) !important;
+    box-shadow: 0 4px 16px rgba(30, 136, 229, 0.15) !important;
     transform: translateY(-2px) !important;
 }
 
@@ -96,9 +97,9 @@ CUSTOM_CSS = """
 
 /* Tabs Modernos */
 .tab-nav button {
-    background: var(--bg-card) !important;
-    border: 1px solid rgba(0, 212, 255, 0.2) !important;
-    color: var(--text-light) !important;
+    background: var(--bg-white) !important;
+    border: 1px solid var(--border-light) !important;
+    color: var(--text-dark) !important;
     border-radius: 0.5rem !important;
     margin-right: 0.5rem !important;
     padding: 0.75rem 1.5rem !important;
@@ -110,21 +111,21 @@ CUSTOM_CSS = """
     background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)) !important;
     border-color: var(--primary-color) !important;
     color: white !important;
-    box-shadow: 0 4px 16px rgba(0, 212, 255, 0.4) !important;
+    box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3) !important;
 }
 
 /* Inputs e Dropdowns */
 input, textarea, select {
-    background: var(--bg-card) !important;
-    border: 1px solid rgba(0, 212, 255, 0.3) !important;
-    color: var(--text-light) !important;
+    background: var(--bg-white) !important;
+    border: 1px solid var(--border-light) !important;
+    color: var(--text-dark) !important;
     border-radius: 0.5rem !important;
     padding: 0.75rem !important;
 }
 
 input:focus, textarea:focus, select:focus {
     border-color: var(--primary-color) !important;
-    box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1) !important;
+    box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.1) !important;
 }
 
 /* Botões */
@@ -136,17 +137,17 @@ input:focus, textarea:focus, select:focus {
     border-radius: 0.5rem !important;
     font-weight: 600 !important;
     font-size: 1.1rem !important;
-    box-shadow: 0 4px 16px rgba(0, 212, 255, 0.4) !important;
+    box-shadow: 0 4px 12px rgba(30, 136, 229, 0.3) !important;
     transition: all 0.3s ease !important;
 }
 
 .primary-btn:hover {
     transform: translateY(-2px) !important;
-    box-shadow: 0 6px 24px rgba(0, 212, 255, 0.6) !important;
+    box-shadow: 0 6px 20px rgba(30, 136, 229, 0.4) !important;
 }
 
 .secondary-btn {
-    background: var(--bg-card) !important;
+    background: var(--bg-white) !important;
     border: 1px solid var(--primary-color) !important;
     color: var(--primary-color) !important;
 }
@@ -156,25 +157,25 @@ input:focus, textarea:focus, select:focus {
     background: var(--bg-card) !important;
     border-radius: 1rem !important;
     padding: 1.5rem !important;
-    border: 1px solid rgba(0, 212, 255, 0.2) !important;
+    border: 1px solid var(--border-light) !important;
 }
 
 .progress-bar {
     height: 1rem !important;
     background: linear-gradient(90deg, var(--primary-color), var(--success-color)) !important;
     border-radius: 0.5rem !important;
-    box-shadow: 0 2px 10px rgba(6, 255, 165, 0.4) !important;
+    box-shadow: 0 2px 8px rgba(0, 200, 83, 0.3) !important;
 }
 
 /* Log Terminal */
 .log-terminal {
-    background: #000 !important;
-    color: var(--success-color) !important;
+    background: #1e1e1e !important;
+    color: #00c853 !important;
     font-family: 'Fira Code', 'Courier New', monospace !important;
     border-radius: 0.5rem !important;
     padding: 1rem !important;
-    border: 1px solid rgba(6, 255, 165, 0.3) !important;
-    box-shadow: 0 0 20px rgba(6, 255, 165, 0.2) !important;
+    border: 1px solid var(--border-light) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
 }
 
 /* Avatar Grid */
@@ -187,7 +188,7 @@ input:focus, textarea:focus, select:focus {
 
 .avatar-item {
     background: var(--bg-card);
-    border: 2px solid transparent;
+    border: 2px solid var(--border-light);
     border-radius: 0.75rem;
     padding: 1rem;
     cursor: pointer;
@@ -196,13 +197,13 @@ input:focus, textarea:focus, select:focus {
 
 .avatar-item:hover {
     border-color: var(--primary-color);
-    box-shadow: 0 4px 16px rgba(0, 212, 255, 0.3);
+    box-shadow: 0 4px 12px rgba(30, 136, 229, 0.2);
     transform: scale(1.05);
 }
 
 .avatar-item.selected {
     border-color: var(--success-color);
-    box-shadow: 0 0 20px rgba(6, 255, 165, 0.4);
+    box-shadow: 0 0 16px rgba(0, 200, 83, 0.3);
 }
 
 /* Status Badges */
@@ -216,19 +217,19 @@ input:focus, textarea:focus, select:focus {
 }
 
 .badge-success {
-    background: rgba(6, 255, 165, 0.2);
+    background: rgba(0, 200, 83, 0.1);
     color: var(--success-color);
     border: 1px solid var(--success-color);
 }
 
 .badge-processing {
-    background: rgba(0, 212, 255, 0.2);
+    background: rgba(30, 136, 229, 0.1);
     color: var(--primary-color);
     border: 1px solid var(--primary-color);
 }
 
 .badge-error {
-    background: rgba(255, 0, 110, 0.2);
+    background: rgba(244, 67, 54, 0.1);
     color: var(--danger-color);
     border: 1px solid var(--danger-color);
 }
@@ -245,27 +246,27 @@ input:focus, textarea:focus, select:focus {
     background: var(--bg-card);
     border-radius: 1rem;
     overflow: hidden;
-    border: 1px solid rgba(0, 212, 255, 0.2);
+    border: 1px solid var(--border-light);
     transition: all 0.3s ease;
 }
 
 .video-card:hover {
     border-color: var(--primary-color);
-    box-shadow: 0 8px 24px rgba(0, 212, 255, 0.4);
+    box-shadow: 0 8px 20px rgba(30, 136, 229, 0.2);
     transform: translateY(-4px);
 }
 
 /* Accordion */
 .accordion-header {
-    background: var(--bg-card) !important;
-    color: var(--text-light) !important;
-    border: 1px solid rgba(0, 212, 255, 0.2) !important;
+    background: var(--bg-white) !important;
+    color: var(--text-dark) !important;
+    border: 1px solid var(--border-light) !important;
     border-radius: 0.5rem !important;
 }
 
 /* Markdown Customizado */
 .markdown-text {
-    color: var(--text-light) !important;
+    color: var(--text-dark) !important;
 }
 
 .markdown-text h1, .markdown-text h2, .markdown-text h3 {
@@ -273,7 +274,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 .markdown-text code {
-    background: rgba(0, 212, 255, 0.1) !important;
+    background: rgba(30, 136, 229, 0.1) !important;
     color: var(--primary-color) !important;
     padding: 0.2rem 0.4rem !important;
     border-radius: 0.25rem !important;
@@ -286,7 +287,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 ::-webkit-scrollbar-track {
-    background: var(--bg-dark);
+    background: var(--bg-light);
 }
 
 ::-webkit-scrollbar-thumb {
@@ -636,13 +637,9 @@ def create_dashboard_tab():
             fn=update_dashboard,
             outputs=[total_videos, total_projects, total_avatars, total_templates, total_duration, total_chars, recent_videos]
         )
-
-        # Carrega estatísticas ao iniciar
-        gr.on(
-            triggers=[gr.load()],
-            fn=update_dashboard,
-            outputs=[total_videos, total_projects, total_avatars, total_templates, total_duration, total_chars, recent_videos]
-        )
+        
+        # Retorna componentes e função para carregamento posterior
+        return update_dashboard, [total_videos, total_projects, total_avatars, total_templates, total_duration, total_chars, recent_videos]
 
 def create_projects_tab():
     """Cria aba de gerenciamento de projetos"""
@@ -683,12 +680,9 @@ def create_projects_tab():
                 fn=list_projects_interface,
                 outputs=[projects_list]
             )
-
-            gr.on(
-                triggers=[gr.load()],
-                fn=list_projects_interface,
-                outputs=[projects_list]
-            )
+        
+        # Retorna função e componentes para carregamento posterior
+        return list_projects_interface, [projects_list]
 
 def create_generator_tab():
     """Cria aba de geração de vídeos"""
@@ -745,10 +739,9 @@ def create_generator_tab():
 
                 # Imagens
                 images_input = gr.File(
-                    label="🖼️ Imagens do Apresentador",
+                    label="🖼️ Imagens do Apresentador (1-20 imagens PNG/JPG)",
                     file_count="multiple",
-                    file_types=["image"],
-                    info="Upload de 1-20 imagens (PNG/JPG)"
+                    file_types=["image"]
                 )
 
                 # Controle de concorrência
@@ -803,18 +796,18 @@ def create_generator_tab():
 def create_interface():
     """Cria interface principal"""
     with gr.Blocks(
-        theme=gr.themes.Soft(
+        theme=gr.themes.Default(
             primary_hue="blue",
             secondary_hue="purple",
-            neutral_hue="slate",
+            neutral_hue="gray",
         ),
         css=CUSTOM_CSS,
         title="LipSync Video Generator Pro"
     ) as app:
 
         # Tabs principais
-        create_dashboard_tab()
-        create_projects_tab()
+        dashboard_fn, dashboard_outputs = create_dashboard_tab()
+        projects_fn, projects_outputs = create_projects_tab()
         create_generator_tab()
 
         # Footer
@@ -829,6 +822,10 @@ def create_interface():
             </p>
         </div>
         """)
+        
+        # Carrega estatísticas do dashboard e lista de projetos ao iniciar
+        app.load(fn=dashboard_fn, outputs=dashboard_outputs)
+        app.load(fn=projects_fn, outputs=projects_outputs)
 
     return app
 
