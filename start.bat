@@ -16,7 +16,7 @@ echo.
 echo.
 
 :: Verifica se Python esta instalado
-echo [1/5] Verificando Python...
+echo [1/4] Verificando Python...
 python --version >nul 2>&1
 if errorlevel 1 (
     color 0C
@@ -32,7 +32,7 @@ echo [OK] Python encontrado
 echo.
 
 :: Verifica se o .env existe
-echo [2/5] Verificando configuracoes...
+echo [2/4] Verificando configuracoes...
 if not exist .env (
     color 0E
     echo.
@@ -53,34 +53,8 @@ if not exist .env (
 echo [OK] Configuracoes OK
 echo.
 
-:: Verifica dependencias
-echo [3/5] Verificando dependencias...
-pip list | findstr "gradio" >nul 2>&1
-if errorlevel 1 (
-    color 0E
-    echo.
-    echo [AVISO] Dependencias nao instaladas!
-    echo.
-    echo Deseja instalar agora? (S/N)
-    set /p install_deps=
-    if /i "%install_deps%"=="S" (
-        echo.
-        echo Instalando dependencias...
-        pip install -r requirements.txt
-        echo.
-        echo [OK] Dependencias instaladas
-    ) else (
-        echo.
-        echo [ERRO] Nao e possivel continuar sem as dependencias
-        pause
-        exit /b 1
-    )
-)
-echo [OK] Dependencias OK
-echo.
-
 :: Verifica se os assets foram criados
-echo [4/5] Verificando assets...
+echo [3/4] Verificando assets...
 if not exist projects\\metadata.json (
     color 0E
     echo.
@@ -107,7 +81,7 @@ echo.
 echo ================================================================
 echo.
 echo.
-echo [5/5] Selecione a interface:
+echo [4/4] Selecione a interface:
 echo.
 echo     [1] Interface Profissional (app_pro.py) - RECOMENDADO
 echo         -- Dashboard, Projetos, Logs em tempo real
